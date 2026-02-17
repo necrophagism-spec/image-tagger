@@ -24,6 +24,7 @@ XAI_MODELS = [
     "grok-4.1",
     "grok-4.1-fast",
     "grok-3",
+    "grok-2-vision-latest",
 ]
 
 XAI_BASE_URL = "https://api.x.ai/v1"
@@ -32,9 +33,12 @@ XAI_BASE_URL = "https://api.x.ai/v1"
 OPENROUTER_MODELS = [
     "qwen/qwen-2.5-vl-72b-instruct",
     "x-ai/grok-4",
+    "x-ai/grok-4.1-fast",
+    "moonshotai/kimi-k2.5",
+    "qwen/qwen3.5-plus-02-15",
+    "z-ai/glm-4.6v",
     "mistralai/pixtral-large-latest",
     "google/gemini-2.5-flash",
-    "openai/gpt-4o",
     "meta-llama/llama-4-scout",
 ]
 
@@ -49,6 +53,7 @@ class OpenAICompatibleAPI:
         self.api_key: Optional[str] = None
         self.base_url: Optional[str] = None
         self.model_name: str = ""
+        self.provider_type: str = "generic"  # "xai" or "openrouter"
     
     @staticmethod
     def is_available() -> bool:
@@ -158,9 +163,9 @@ class OpenAICompatibleAPI:
             ]
         })
         
-        # Build extra_body for reasoning control
+        # Build extra_body for reasoning control (OpenRouter only; xAI rejects this)
         extra_body = None
-        if reasoning_effort and reasoning_effort != "auto":
+        if self.provider_type == "openrouter" and reasoning_effort and reasoning_effort != "auto":
             extra_body = {
                 "reasoning": {
                     "effort": reasoning_effort,
@@ -179,9 +184,12 @@ class OpenAICompatibleAPI:
         if extra_body:
             kwargs["extra_body"] = extra_body
         
-        response = self.client.chat.completions.create(**kwargs)
-        
-        return response.choices[0].message.content
+        try:
+            response = self.client.chat.completions.create(**kwargs)
+            return response.choices[0].message.content
+        except Exception as e:
+            print(f"[{self.provider_type.upper()}] API error: {e}")
+            raise
 
 
 # ===== Global instances =====
@@ -195,6 +203,7 @@ def get_xai_api() -> OpenAICompatibleAPI:
     global _xai_api
     if _xai_api is None:
         _xai_api = OpenAICompatibleAPI()
+        _xai_api.provider_type = "xai"
     return _xai_api
 
 
@@ -203,4 +212,5 @@ def get_openrouter_api() -> OpenAICompatibleAPI:
     global _openrouter_api
     if _openrouter_api is None:
         _openrouter_api = OpenAICompatibleAPI()
+        _openrouter_api.provider_type = "openrouter"
     return _openrouter_api

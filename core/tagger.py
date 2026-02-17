@@ -217,7 +217,7 @@ class Tagger:
         else:
             if not backend.is_configured():
                 if self.on_error:
-                    self.on_error("", "Gemini API not configured")
+                    self.on_error("", "API not configured")
                 return 0
         
         # Process each image
