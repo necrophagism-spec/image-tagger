@@ -163,7 +163,8 @@ class OpenAICompatibleAPI:
         if reasoning_effort and reasoning_effort != "auto":
             extra_body = {
                 "reasoning": {
-                    "effort": reasoning_effort
+                    "effort": reasoning_effort,
+                    "exclude": True,  # Use reasoning internally but don't include in output
                 }
             }
         

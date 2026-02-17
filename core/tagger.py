@@ -105,7 +105,7 @@ class Tagger:
                 reasoning_effort=self.reasoning_effort,
             )
         else:
-            # Gemini uses its own API format
+            # Gemini uses its own API format with thinking_config
             return backend.generate(
                 image=image,
                 system_prompt=self.system_prompt,
@@ -114,6 +114,7 @@ class Tagger:
                 top_k=self.top_k,
                 top_p=self.top_p,
                 max_tokens=self.max_tokens,
+                reasoning_effort=self.reasoning_effort,
             )
     
     def process_folder(self, folder_path: str) -> int:

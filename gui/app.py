@@ -433,7 +433,7 @@ class ImageTaggerApp(ctk.CTk):
         self.reasoning_frame = ctk.CTkFrame(self.settings_section, fg_color="transparent")
         self.reasoning_frame.pack(fill="x", padx=10, pady=(0, 10))
         
-        ctk.CTkLabel(self.reasoning_frame, text="xAI / OpenRouter Only:", font=("", 11), text_color="gray").pack(anchor="w")
+        ctk.CTkLabel(self.reasoning_frame, text="API Reasoning (Gemini / xAI / OpenRouter):", font=("", 11), text_color="gray").pack(anchor="w")
         
         reason_row = ctk.CTkFrame(self.reasoning_frame, fg_color="transparent")
         reason_row.pack(fill="x", pady=3)
@@ -610,7 +610,7 @@ class ImageTaggerApp(ctk.CTk):
             self.reasoning_frame.pack_forget()
         elif mode == "gemini":
             self.api_section.pack(fill="x", pady=(0, 10), before=self.settings_section)
-            self.reasoning_frame.pack_forget()
+            self.reasoning_frame.pack(fill="x", padx=10, pady=(0, 10))
         elif mode == "xai":
             self.xai_section.pack(fill="x", pady=(0, 10), before=self.settings_section)
             self.reasoning_frame.pack(fill="x", padx=10, pady=(0, 10))

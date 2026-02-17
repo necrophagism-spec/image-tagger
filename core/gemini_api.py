@@ -18,12 +18,34 @@ except ImportError:
     types = None
 
 
-# Available Gemini models for vision (updated 2025)
+# Available Gemini models for vision (updated 2026-02)
 GEMINI_MODELS = [
     "gemini-2.5-flash",
     "gemini-2.5-pro",
+    "gemini-3-flash-preview",
+    "gemini-3-pro-preview",
     "gemini-2.0-flash",
 ]
+
+# Map our unified reasoning effort levels to Gemini thinking_level (Gemini 3)
+_EFFORT_TO_THINKING_LEVEL = {
+    "none": "minimal",     # Gemini 3 can't fully disable; minimal = likely no thinking
+    "minimal": "minimal",
+    "low": "low",
+    "medium": "medium",
+    "high": "high",
+    "auto": None,          # Let model decide dynamically
+}
+
+# Map our unified reasoning effort levels to Gemini thinking_budget (Gemini 2.5)
+_EFFORT_TO_THINKING_BUDGET = {
+    "none": 0,        # Disable thinking (not supported by 2.5 Pro, will be ignored)
+    "minimal": 256,
+    "low": 1024,
+    "medium": 4096,
+    "high": 8192,
+    "auto": -1,       # Dynamic allocation
+}
 
 
 class GeminiAPI:
@@ -32,7 +54,7 @@ class GeminiAPI:
     def __init__(self):
         self.client: Optional[genai.Client] = None
         self.api_key: Optional[str] = None
-        self.model_name: str = "gemini-2.0-flash"
+        self.model_name: str = "gemini-2.5-flash"
     
     @staticmethod
     def is_available() -> bool:
@@ -44,7 +66,7 @@ class GeminiAPI:
         """Get list of available Gemini vision models."""
         return GEMINI_MODELS.copy()
     
-    def configure(self, api_key: str, model_name: str = "gemini-2.0-flash") -> bool:
+    def configure(self, api_key: str, model_name: str = "gemini-2.5-flash") -> bool:
         """
         Configure the Gemini API client.
         
@@ -82,6 +104,23 @@ class GeminiAPI:
             mime_type="image/png"
         )
     
+    def _build_thinking_config(self, reasoning_effort: str):
+        """Build ThinkingConfig based on model and effort level."""
+        if not reasoning_effort or reasoning_effort == "auto":
+            return None  # Let model decide
+        
+        is_gemini3 = "gemini-3" in self.model_name
+        
+        if is_gemini3:
+            level = _EFFORT_TO_THINKING_LEVEL.get(reasoning_effort)
+            if level:
+                return types.ThinkingConfig(thinking_level=level)
+        else:
+            budget = _EFFORT_TO_THINKING_BUDGET.get(reasoning_effort, -1)
+            return types.ThinkingConfig(thinking_budget=budget)
+        
+        return None
+    
     def generate(
         self,
         image: Image.Image,
@@ -90,7 +129,8 @@ class GeminiAPI:
         temperature: float = 0.7,
         top_k: int = 40,
         top_p: float = 0.9,
-        max_tokens: int = 512
+        max_tokens: int = 512,
+        reasoning_effort: str = "none",
     ) -> str:
         """
         Generate text description for an image.
@@ -103,6 +143,7 @@ class GeminiAPI:
             top_k: Top-K sampling parameter
             top_p: Top-P (nucleus) sampling parameter
             max_tokens: Maximum tokens to generate
+            reasoning_effort: Reasoning effort level (none/minimal/low/medium/high/auto)
             
         Returns:
             Generated text
@@ -113,6 +154,9 @@ class GeminiAPI:
         # Convert image to part
         image_part = self._image_to_part(image)
         
+        # Build thinking config
+        thinking_config = self._build_thinking_config(reasoning_effort)
+        
         # Build generation config
         config = types.GenerateContentConfig(
             temperature=temperature,
@@ -120,6 +164,7 @@ class GeminiAPI:
             top_p=top_p,
             max_output_tokens=max_tokens,
             system_instruction=system_prompt if system_prompt else None,
+            thinking_config=thinking_config,
         )
         
         # Generate response
