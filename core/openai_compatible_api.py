@@ -17,13 +17,10 @@ except ImportError:
     OpenAI = None
 
 
-# ===== xAI Grok Models (Vision-capable) =====
+# ===== xAI Grok Models (Vision-capable, confirmed) =====
 XAI_MODELS = [
     "grok-4",
     "grok-4-fast",
-    "grok-4.1",
-    "grok-4.1-fast",
-    "grok-3",
     "grok-2-vision-latest",
 ]
 
