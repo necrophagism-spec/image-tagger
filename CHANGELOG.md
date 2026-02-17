@@ -1,5 +1,27 @@
 # Image Tagger 變更紀錄
 
+## v1.4.0 (2025-02-17)
+
+### 新功能
+- **xAI (Grok) API 支援** — 新增 xAI Grok Vision 後端
+  - 預設模型：`grok-4`, `grok-4-fast`, `grok-4.1`, `grok-4.1-fast`, `grok-3`
+  - 可自行輸入任意模型名稱
+- **OpenRouter API 支援** — 新增 OpenRouter 統一 API 後端
+  - 預設模型：`qwen/qwen-2.5-vl-72b-instruct`, `x-ai/grok-4`, `mistralai/pixtral-large-latest` 等
+  - 可自行輸入任意 OpenRouter 模型名稱
+- **統一 OpenAI 兼容後端** — xAI 和 OpenRouter 共用 `openai_compatible_api.py`
+
+### UI 改進
+- Model Type 從 Radio Button 改為 4 選項下拉選單
+- **修復 Generation Settings 重啟後被重設的 bug** — slider 標籤值現在正確恢復
+- **新增 Quick Save 按鈕** — 直接覆蓋當前模板，無需輸入名稱
+- **System Prompt 文字區塊加大** — 從 80px 改為 200px，並自動展開
+
+### 依賴
+- 新增 `openai>=1.0.0` 套件依賴
+
+---
+
 ## v1.3.0 (2025-02-05)
 
 ### 新功能

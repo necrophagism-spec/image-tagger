@@ -10,6 +10,7 @@ from PIL import Image
 
 from .local_vlm import get_local_vlm, LocalVLM
 from .gemini_api import get_gemini_api, GeminiAPI
+from .openai_compatible_api import get_xai_api, get_openrouter_api, OpenAICompatibleAPI
 from .image_processor import find_images, load_image, save_tags
 
 
@@ -23,6 +24,8 @@ class BackendType(Enum):
     """Inference backend type."""
     LOCAL_VLM = "local"
     GEMINI_API = "gemini"
+    XAI = "xai"
+    OPENROUTER = "openrouter"
 
 
 # Default system prompt (used as fallback)
@@ -61,6 +64,10 @@ class Tagger:
         """Get the appropriate backend instance."""
         if self.backend_type == BackendType.LOCAL_VLM:
             return get_local_vlm()
+        elif self.backend_type == BackendType.XAI:
+            return get_xai_api()
+        elif self.backend_type == BackendType.OPENROUTER:
+            return get_openrouter_api()
         else:
             return get_gemini_api()
     
@@ -85,6 +92,7 @@ class Tagger:
                 max_tokens=self.max_tokens,
             )
         else:
+            # Gemini, xAI, and OpenRouter all share the same parameter interface
             return backend.generate(
                 image=image,
                 system_prompt=self.system_prompt,

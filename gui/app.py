@@ -13,9 +13,23 @@ from PIL import Image, ImageTk
 from core.tagger import get_tagger, BackendType, TaggingFormat
 from core.local_vlm import get_local_vlm, VLMType
 from core.gemini_api import get_gemini_api, GEMINI_MODELS
+from core.openai_compatible_api import (
+    get_xai_api, get_openrouter_api,
+    XAI_MODELS, XAI_BASE_URL,
+    OPENROUTER_MODELS, OPENROUTER_BASE_URL,
+)
 from core.config_manager import get_config
 from core.prompt_templates import get_templates
 from core.image_processor import find_images, get_output_path
+
+# Model type display names and values
+MODEL_TYPE_OPTIONS = {
+    "Local VLM (.gguf)": "local",
+    "Gemini API": "gemini",
+    "xAI (Grok)": "xai",
+    "OpenRouter": "openrouter",
+}
+MODEL_TYPE_DISPLAY = {v: k for k, v in MODEL_TYPE_OPTIONS.items()}
 
 
 # Theme configuration
@@ -226,8 +240,10 @@ class ImageTaggerApp(ctk.CTk):
         # ===== Local Model Config =====
         self._create_local_config_section(center_frame)
         
-        # ===== API Config =====
+        # ===== API Configs =====
         self._create_api_config_section(center_frame)
+        self._create_xai_config_section(center_frame)
+        self._create_openrouter_config_section(center_frame)
         
         # ===== Model Settings =====
         self._create_settings_section(center_frame)
@@ -256,19 +272,20 @@ class ImageTaggerApp(ctk.CTk):
         
         self.model_type_var = ctk.StringVar(value="gemini")
         
-        self.local_radio = ctk.CTkRadioButton(
-            row, text="Local VLM (.gguf)", 
-            variable=self.model_type_var, value="local",
-            command=self._update_config_visibility
+        self.model_type_combo = ctk.CTkComboBox(
+            row,
+            values=list(MODEL_TYPE_OPTIONS.keys()),
+            width=200,
+            state="readonly",
+            command=self._on_model_type_change,
         )
-        self.local_radio.pack(side="left", padx=(0, 20))
-        
-        self.gemini_radio = ctk.CTkRadioButton(
-            row, text="Gemini API",
-            variable=self.model_type_var, value="gemini",
-            command=self._update_config_visibility
-        )
-        self.gemini_radio.pack(side="left")
+        self.model_type_combo.set("Gemini API")
+        self.model_type_combo.pack(side="left")
+    
+    def _on_model_type_change(self, display_name: str):
+        """Handle model type dropdown change."""
+        self.model_type_var.set(MODEL_TYPE_OPTIONS[display_name])
+        self._update_config_visibility()
     
     def _create_local_config_section(self, parent):
         """Create local VLM configuration."""
@@ -338,6 +355,54 @@ class ImageTaggerApp(ctk.CTk):
         self.gemini_model_combo.set(GEMINI_MODELS[0])
         self.gemini_model_combo.pack(side="left")
     
+    def _create_xai_config_section(self, parent):
+        """Create xAI Grok API configuration."""
+        self.xai_section = ctk.CTkFrame(parent)
+        self.xai_section.pack(fill="x", pady=(0, 10))
+        
+        ctk.CTkLabel(self.xai_section, text="xAI (Grok)", font=("", 14, "bold")).pack(anchor="w", padx=10, pady=(10, 5))
+        
+        # API Key
+        row1 = ctk.CTkFrame(self.xai_section, fg_color="transparent")
+        row1.pack(fill="x", padx=10, pady=(0, 5))
+        
+        ctk.CTkLabel(row1, text="API Key:", width=80, anchor="w").pack(side="left")
+        self.xai_key_entry = ctk.CTkEntry(row1, placeholder_text="Enter xAI API key...", show="•")
+        self.xai_key_entry.pack(side="left", fill="x", expand=True)
+        
+        # Model selection (editable combobox for custom input)
+        row2 = ctk.CTkFrame(self.xai_section, fg_color="transparent")
+        row2.pack(fill="x", padx=10, pady=(0, 10))
+        
+        ctk.CTkLabel(row2, text="Model:", width=80, anchor="w").pack(side="left")
+        self.xai_model_combo = ctk.CTkComboBox(row2, values=XAI_MODELS, width=220)
+        self.xai_model_combo.set(XAI_MODELS[0])
+        self.xai_model_combo.pack(side="left")
+    
+    def _create_openrouter_config_section(self, parent):
+        """Create OpenRouter API configuration."""
+        self.openrouter_section = ctk.CTkFrame(parent)
+        self.openrouter_section.pack(fill="x", pady=(0, 10))
+        
+        ctk.CTkLabel(self.openrouter_section, text="OpenRouter", font=("", 14, "bold")).pack(anchor="w", padx=10, pady=(10, 5))
+        
+        # API Key
+        row1 = ctk.CTkFrame(self.openrouter_section, fg_color="transparent")
+        row1.pack(fill="x", padx=10, pady=(0, 5))
+        
+        ctk.CTkLabel(row1, text="API Key:", width=80, anchor="w").pack(side="left")
+        self.openrouter_key_entry = ctk.CTkEntry(row1, placeholder_text="Enter OpenRouter API key...", show="•")
+        self.openrouter_key_entry.pack(side="left", fill="x", expand=True)
+        
+        # Model selection (editable combobox for custom input)
+        row2 = ctk.CTkFrame(self.openrouter_section, fg_color="transparent")
+        row2.pack(fill="x", padx=10, pady=(0, 10))
+        
+        ctk.CTkLabel(row2, text="Model:", width=80, anchor="w").pack(side="left")
+        self.openrouter_model_combo = ctk.CTkComboBox(row2, values=OPENROUTER_MODELS, width=320)
+        self.openrouter_model_combo.set(OPENROUTER_MODELS[0])
+        self.openrouter_model_combo.pack(side="left")
+    
 
     
     def _create_settings_section(self, parent):
@@ -401,6 +466,7 @@ class ImageTaggerApp(ctk.CTk):
         self.template_combo.set(self.templates.get_names()[0] if self.templates.get_names() else "")
         self.template_combo.pack(side="left", padx=(0, 10))
         
+        ctk.CTkButton(row, text="Save", width=50, command=self._quick_save_template).pack(side="left", padx=(0, 5))
         ctk.CTkButton(row, text="Save As...", width=70, command=self._save_template).pack(side="left", padx=(0, 5))
         ctk.CTkButton(row, text="Delete", width=60, fg_color="red", hover_color="darkred",
                       command=self._delete_template).pack(side="left")
@@ -408,12 +474,12 @@ class ImageTaggerApp(ctk.CTk):
     def _create_prompt_section(self, parent):
         """Create system prompt text area."""
         section = ctk.CTkFrame(parent)
-        section.pack(fill="x", pady=(0, 10))
+        section.pack(fill="both", expand=True, pady=(0, 10))
         
         ctk.CTkLabel(section, text="System Prompt", font=("", 14, "bold")).pack(anchor="w", padx=10, pady=(10, 5))
         
-        self.prompt_text = ctk.CTkTextbox(section, height=80)
-        self.prompt_text.pack(fill="x", padx=10, pady=(0, 10))
+        self.prompt_text = ctk.CTkTextbox(section, height=200)
+        self.prompt_text.pack(fill="both", expand=True, padx=10, pady=(0, 10))
         self.prompt_text.insert("1.0", self.config.get("system_prompt"))
     
     def _create_controls_section(self, parent):
@@ -509,14 +575,25 @@ class ImageTaggerApp(ctk.CTk):
     
     def _update_config_visibility(self):
         """Show/hide config sections based on model type."""
-        if self.model_type_var.get() == "local":
-            self.api_section.pack_forget()
+        mode = self.model_type_var.get()
+        
+        # Hide all config sections first
+        self.local_section.pack_forget()
+        self.api_section.pack_forget()
+        self.xai_section.pack_forget()
+        self.openrouter_section.pack_forget()
+        self.local_settings_frame.pack_forget()
+        
+        # Show the relevant section
+        if mode == "local":
             self.local_section.pack(fill="x", pady=(0, 10), before=self.settings_section)
             self.local_settings_frame.pack(fill="x", padx=10, pady=(0, 10))
-        else:
-            self.local_section.pack_forget()
+        elif mode == "gemini":
             self.api_section.pack(fill="x", pady=(0, 10), before=self.settings_section)
-            self.local_settings_frame.pack_forget()
+        elif mode == "xai":
+            self.xai_section.pack(fill="x", pady=(0, 10), before=self.settings_section)
+        elif mode == "openrouter":
+            self.openrouter_section.pack(fill="x", pady=(0, 10), before=self.settings_section)
     
     def _browse_folder(self):
         """Open folder browser."""
@@ -685,6 +762,21 @@ class ImageTaggerApp(ctk.CTk):
             self.prompt_text.delete("1.0", "end")
             self.prompt_text.insert("1.0", prompt)
     
+    def _quick_save_template(self):
+        """Quick save: overwrite current template with current prompt text."""
+        name = self.template_combo.get()
+        if not name:
+            self._save_template()
+            return
+        
+        if self.templates.is_default(name):
+            messagebox.showinfo("Info", f"'{name}' is a default template.\nUse 'Save As...' to create a copy.")
+            return
+        
+        prompt = self.prompt_text.get("1.0", "end-1c")
+        if self.templates.add(name, prompt):
+            self.status_label.configure(text=f"Template saved: {name}")
+    
     def _save_template(self):
         """Save current prompt as new template."""
         dialog = ctk.CTkInputDialog(text="Enter template name:", title="Save Template")
@@ -737,12 +829,14 @@ class ImageTaggerApp(ctk.CTk):
         tagger = get_tagger()
         
         # Set backend
-        if self.model_type_var.get() == "local":
+        mode = self.model_type_var.get()
+        
+        if mode == "local":
             tagger.backend_type = BackendType.LOCAL_VLM
             if not get_local_vlm().is_loaded():
                 messagebox.showerror("Error", "Please load a local model first.")
                 return
-        else:
+        elif mode == "gemini":
             tagger.backend_type = BackendType.GEMINI_API
             api_key = self.api_key_entry.get().strip()
             if not api_key:
@@ -752,6 +846,36 @@ class ImageTaggerApp(ctk.CTk):
             gemini = get_gemini_api()
             if not gemini.configure(api_key, self.gemini_model_combo.get()):
                 messagebox.showerror("Error", "Failed to configure Gemini API.")
+                return
+        elif mode == "xai":
+            tagger.backend_type = BackendType.XAI
+            api_key = self.xai_key_entry.get().strip()
+            model_name = self.xai_model_combo.get().strip()
+            if not api_key:
+                messagebox.showerror("Error", "Please enter your xAI API key.")
+                return
+            if not model_name:
+                messagebox.showerror("Error", "Please select or enter an xAI model.")
+                return
+            
+            xai = get_xai_api()
+            if not xai.configure(api_key, model_name, XAI_BASE_URL):
+                messagebox.showerror("Error", "Failed to configure xAI API.")
+                return
+        elif mode == "openrouter":
+            tagger.backend_type = BackendType.OPENROUTER
+            api_key = self.openrouter_key_entry.get().strip()
+            model_name = self.openrouter_model_combo.get().strip()
+            if not api_key:
+                messagebox.showerror("Error", "Please enter your OpenRouter API key.")
+                return
+            if not model_name:
+                messagebox.showerror("Error", "Please select or enter an OpenRouter model.")
+                return
+            
+            openrouter = get_openrouter_api()
+            if not openrouter.configure(api_key, model_name, OPENROUTER_BASE_URL):
+                messagebox.showerror("Error", "Failed to configure OpenRouter API.")
                 return
         
         # Set format and prompt from template
@@ -844,14 +968,33 @@ class ImageTaggerApp(ctk.CTk):
                 self._load_folder(last_folder)
         
         # Model type
-        self.model_type_var.set(config.get("model_type", "gemini"))
+        model_type_val = config.get("model_type", "gemini")
+        self.model_type_var.set(model_type_val)
+        display_name = MODEL_TYPE_DISPLAY.get(model_type_val, "Gemini API")
+        self.model_type_combo.set(display_name)
         self._update_config_visibility()
         
-        # API settings
+        # Gemini API settings
         api_key = config.get("api_key")
         if api_key:
             self.api_key_entry.insert(0, api_key)
         self.gemini_model_combo.set(config.get("gemini_model", GEMINI_MODELS[0]))
+        
+        # xAI settings
+        xai_key = config.get("xai_api_key")
+        if xai_key:
+            self.xai_key_entry.insert(0, xai_key)
+        xai_model = config.get("xai_model")
+        if xai_model:
+            self.xai_model_combo.set(xai_model)
+        
+        # OpenRouter settings
+        or_key = config.get("openrouter_api_key")
+        if or_key:
+            self.openrouter_key_entry.insert(0, or_key)
+        or_model = config.get("openrouter_model")
+        if or_model:
+            self.openrouter_model_combo.set(or_model)
         
         # Local model paths
         local_model = config.get("local_model_path")
@@ -865,13 +1008,26 @@ class ImageTaggerApp(ctk.CTk):
         vlm_type = config.get("vlm_type", "Qwen3VL")
         self.vlm_type_combo.set(vlm_type)
         
-        # Sliders
-        self.temp_slider.set(config.get("temperature", 0.4))
-        self.topk_slider.set(config.get("top_k", 40))
-        self.topp_slider.set(config.get("top_p", 0.9))
-        self.minp_slider.set(config.get("min_p", 0.05))
-        self.repeat_slider.set(config.get("repeat_penalty", 1.1))
-
+        # Sliders — set values and update labels
+        temp_val = config.get("temperature", 0.4)
+        self.temp_slider.set(temp_val)
+        self.temp_label.configure(text=f"{temp_val:.2f}")
+        
+        topk_val = config.get("top_k", 40)
+        self.topk_slider.set(topk_val)
+        self.topk_label.configure(text=str(int(topk_val)))
+        
+        topp_val = config.get("top_p", 0.9)
+        self.topp_slider.set(topp_val)
+        self.topp_label.configure(text=f"{topp_val:.2f}")
+        
+        minp_val = config.get("min_p", 0.05)
+        self.minp_slider.set(minp_val)
+        self.minp_label.configure(text=f"{minp_val:.2f}")
+        
+        repeat_val = config.get("repeat_penalty", 1.1)
+        self.repeat_slider.set(repeat_val)
+        self.repeat_label.configure(text=f"{repeat_val:.2f}")
         
         # Template
         template_name = config.get("selected_template")
@@ -886,6 +1042,10 @@ class ImageTaggerApp(ctk.CTk):
             "model_type": self.model_type_var.get(),
             "gemini_model": self.gemini_model_combo.get(),
             "api_key": self.api_key_entry.get().strip(),
+            "xai_api_key": self.xai_key_entry.get().strip(),
+            "xai_model": self.xai_model_combo.get(),
+            "openrouter_api_key": self.openrouter_key_entry.get().strip(),
+            "openrouter_model": self.openrouter_model_combo.get(),
             "local_model_path": self.model_path_entry.get().strip(),
             "local_mmproj_path": self.mmproj_path_entry.get().strip(),
             "vlm_type": self.vlm_type_combo.get(),

@@ -9,5 +9,8 @@ llama-cpp-python>=0.2.50
 # Google Gemini API
 google-genai>=0.4.0
 
+# OpenAI-compatible APIs (xAI, OpenRouter)
+openai>=1.0.0
+
 # Image Processing
 Pillow>=10.0.0
