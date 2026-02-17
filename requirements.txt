@@ -1,0 +1,13 @@
+# Dependencies for Image Tagging Application
+
+# GUI Framework
+customtkinter>=5.2.0
+
+# Local VLM Inference
+llama-cpp-python>=0.2.50
+
+# Google Gemini API
+google-genai>=0.4.0
+
+# Image Processing
+Pillow>=10.0.0

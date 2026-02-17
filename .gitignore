@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv*/
+venv*/
+
+# IDE
+.vscode/
+.idea/
+
+# Wheel files (too large for git)
+*.whl
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Config (contains API keys)
+# Note: config is stored in %APPDATA%, not in project dir
+
+# Unrelated files
+stabbing_analysis_system_prompt.md
+
+# Gemini agent data
+.gemini/
