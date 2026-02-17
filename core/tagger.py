@@ -47,6 +47,7 @@ class Tagger:
         self.min_p: float = 0.05
         self.repeat_penalty: float = 1.1
         self.max_tokens: int = 512
+        self.reasoning_effort: str = "none"
         
         # Callbacks
         self.on_progress: Optional[Callable[[int, int, str], None]] = None
@@ -91,8 +92,20 @@ class Tagger:
                 repeat_penalty=self.repeat_penalty,
                 max_tokens=self.max_tokens,
             )
+        elif self.backend_type in (BackendType.XAI, BackendType.OPENROUTER):
+            # xAI and OpenRouter support reasoning effort control
+            return backend.generate(
+                image=image,
+                system_prompt=self.system_prompt,
+                user_prompt=user_prompt,
+                temperature=self.temperature,
+                top_k=self.top_k,
+                top_p=self.top_p,
+                max_tokens=self.max_tokens,
+                reasoning_effort=self.reasoning_effort,
+            )
         else:
-            # Gemini, xAI, and OpenRouter all share the same parameter interface
+            # Gemini uses its own API format
             return backend.generate(
                 image=image,
                 system_prompt=self.system_prompt,

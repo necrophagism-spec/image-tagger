@@ -428,6 +428,25 @@ class ImageTaggerApp(ctk.CTk):
         
         self.minp_slider, self.minp_label = self._create_slider(self.local_settings_frame, "Min-P:", 0, 1, 0.05, 1)
         self.repeat_slider, self.repeat_label = self._create_slider(self.local_settings_frame, "Repeat Penalty:", 0, 2, 1.1, 2)
+        
+        # Reasoning effort (xAI / OpenRouter only)
+        self.reasoning_frame = ctk.CTkFrame(self.settings_section, fg_color="transparent")
+        self.reasoning_frame.pack(fill="x", padx=10, pady=(0, 10))
+        
+        ctk.CTkLabel(self.reasoning_frame, text="xAI / OpenRouter Only:", font=("", 11), text_color="gray").pack(anchor="w")
+        
+        reason_row = ctk.CTkFrame(self.reasoning_frame, fg_color="transparent")
+        reason_row.pack(fill="x", pady=3)
+        
+        ctk.CTkLabel(reason_row, text="Reasoning:", width=110, anchor="w").pack(side="left")
+        self.reasoning_combo = ctk.CTkComboBox(
+            reason_row,
+            values=["none", "minimal", "low", "medium", "high", "auto"],
+            width=120,
+            state="readonly",
+        )
+        self.reasoning_combo.set("none")
+        self.reasoning_combo.pack(side="left", padx=5)
     
     def _create_slider(self, parent, label_text: str, from_: float, to: float, default: float, row: int, is_int: bool = False):
         """Create a labeled slider."""
@@ -588,12 +607,16 @@ class ImageTaggerApp(ctk.CTk):
         if mode == "local":
             self.local_section.pack(fill="x", pady=(0, 10), before=self.settings_section)
             self.local_settings_frame.pack(fill="x", padx=10, pady=(0, 10))
+            self.reasoning_frame.pack_forget()
         elif mode == "gemini":
             self.api_section.pack(fill="x", pady=(0, 10), before=self.settings_section)
+            self.reasoning_frame.pack_forget()
         elif mode == "xai":
             self.xai_section.pack(fill="x", pady=(0, 10), before=self.settings_section)
+            self.reasoning_frame.pack(fill="x", padx=10, pady=(0, 10))
         elif mode == "openrouter":
             self.openrouter_section.pack(fill="x", pady=(0, 10), before=self.settings_section)
+            self.reasoning_frame.pack(fill="x", padx=10, pady=(0, 10))
     
     def _browse_folder(self):
         """Open folder browser."""
@@ -891,6 +914,7 @@ class ImageTaggerApp(ctk.CTk):
         tagger.top_p = settings["top_p"]
         tagger.min_p = settings["min_p"]
         tagger.repeat_penalty = settings["repeat_penalty"]
+        tagger.reasoning_effort = self.reasoning_combo.get()
         
         # Store checked images for processing
         self._images_to_process = checked_images
@@ -1029,6 +1053,10 @@ class ImageTaggerApp(ctk.CTk):
         self.repeat_slider.set(repeat_val)
         self.repeat_label.configure(text=f"{repeat_val:.2f}")
         
+        # Reasoning effort
+        reasoning = config.get("reasoning_effort", "none")
+        self.reasoning_combo.set(reasoning)
+        
         # Template
         template_name = config.get("selected_template")
         if template_name and template_name in self.templates.get_names():
@@ -1054,6 +1082,7 @@ class ImageTaggerApp(ctk.CTk):
             "top_p": self.topp_slider.get(),
             "min_p": self.minp_slider.get(),
             "repeat_penalty": self.repeat_slider.get(),
+            "reasoning_effort": self.reasoning_combo.get(),
             "selected_template": self.template_combo.get(),
             "system_prompt": self.prompt_text.get("1.0", "end-1c").strip(),
             "window_geometry": f"{self.winfo_width()}x{self.winfo_height()}",

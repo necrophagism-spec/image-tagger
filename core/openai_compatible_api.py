@@ -110,7 +110,8 @@ class OpenAICompatibleAPI:
         temperature: float = 0.7,
         top_k: int = 40,
         top_p: float = 0.9,
-        max_tokens: int = 512
+        max_tokens: int = 512,
+        reasoning_effort: str = "none",
     ) -> str:
         """
         Generate text description for an image.
@@ -123,6 +124,7 @@ class OpenAICompatibleAPI:
             top_k: Top-K sampling parameter (not used by OpenAI API)
             top_p: Top-P (nucleus) sampling parameter
             max_tokens: Maximum tokens to generate
+            reasoning_effort: Reasoning effort level (none/minimal/low/medium/high/auto)
             
         Returns:
             Generated text
@@ -156,14 +158,27 @@ class OpenAICompatibleAPI:
             ]
         })
         
+        # Build extra_body for reasoning control
+        extra_body = None
+        if reasoning_effort and reasoning_effort != "auto":
+            extra_body = {
+                "reasoning": {
+                    "effort": reasoning_effort
+                }
+            }
+        
         # Generate response
-        response = self.client.chat.completions.create(
+        kwargs = dict(
             model=self.model_name,
             messages=messages,
             temperature=temperature,
             top_p=top_p,
             max_tokens=max_tokens,
         )
+        if extra_body:
+            kwargs["extra_body"] = extra_body
+        
+        response = self.client.chat.completions.create(**kwargs)
         
         return response.choices[0].message.content
 
