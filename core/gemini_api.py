@@ -157,7 +157,7 @@ class GeminiAPI:
         # Build thinking config
         thinking_config = self._build_thinking_config(reasoning_effort)
         
-        # Build generation config
+        # Build generation config with most permissive safety settings
         config = types.GenerateContentConfig(
             temperature=temperature,
             top_k=top_k,
@@ -165,6 +165,13 @@ class GeminiAPI:
             max_output_tokens=max_tokens,
             system_instruction=system_prompt if system_prompt else None,
             thinking_config=thinking_config,
+            safety_settings=[
+                types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE"),
+                types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="BLOCK_NONE"),
+                types.SafetySetting(category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="BLOCK_NONE"),
+                types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_NONE"),
+                types.SafetySetting(category="HARM_CATEGORY_CIVIC_INTEGRITY", threshold="BLOCK_NONE"),
+            ],
         )
         
         # Generate response
