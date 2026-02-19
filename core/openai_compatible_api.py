@@ -19,6 +19,8 @@ except ImportError:
 
 # ===== xAI Grok Models (Vision-capable, confirmed) =====
 XAI_MODELS = [
+    "grok-4-1-fast-reasoning",
+    "grok-4-fast-non-reasoning",
     "grok-4",
     "grok-4-fast",
     "grok-2-vision-latest",
@@ -28,15 +30,14 @@ XAI_BASE_URL = "https://api.x.ai/v1"
 
 # ===== OpenRouter Models (Vision-capable, curated) =====
 OPENROUTER_MODELS = [
-    "qwen/qwen-2.5-vl-72b-instruct",
-    "x-ai/grok-4",
+    "qwen/qwen3-vl-235b-a22b-instruct",
+    "qwen/qwen3.5-397b-a17b",
+    "qwen/qwen3-vl-235b-a22b-thinking",
     "x-ai/grok-4.1-fast",
     "moonshotai/kimi-k2.5",
     "qwen/qwen3.5-plus-02-15",
     "z-ai/glm-4.6v",
     "mistralai/pixtral-large-latest",
-    "google/gemini-2.5-flash",
-    "meta-llama/llama-4-scout",
 ]
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
