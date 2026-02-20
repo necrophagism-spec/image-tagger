@@ -20,6 +20,8 @@ except ImportError:
 
 # Available Gemini models for vision (updated 2026-02)
 GEMINI_MODELS = [
+    "gemini-3.1-pro-preview",
+    "gemini-3.1-flash-preview",
     "gemini-2.5-flash",
     "gemini-2.5-pro",
     "gemini-3-flash-preview",
