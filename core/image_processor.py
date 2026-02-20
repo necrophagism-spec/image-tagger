@@ -65,28 +65,37 @@ def image_to_base64(image: Image.Image, format: str = 'JPEG') -> str:
     return base64.b64encode(buffer.getvalue()).decode('utf-8')
 
 
-def get_output_path(image_path: Path) -> Path:
+def get_output_path(image_path: Path, output_dir: str = None) -> Path:
     """
     Get the corresponding .txt output path for an image.
     
     Args:
         image_path: Path to the image file
+        output_dir: Optional custom directory to save the .txt file
         
     Returns:
         Path to the output .txt file
     """
+    if output_dir:
+        # Save in the custom output directory but keep the identical filename
+        out_dir_path = Path(output_dir)
+        out_dir_path.mkdir(parents=True, exist_ok=True)
+        return out_dir_path / image_path.with_suffix('.txt').name
+    
+    # Default: save alongside the image
     return image_path.with_suffix('.txt')
 
 
-def save_tags(image_path: Path, tags: str) -> None:
+def save_tags(image_path: Path, tags: str, output_dir: str = None) -> None:
     """
     Save tagging result to a .txt file.
     
     Args:
         image_path: Path to the original image
         tags: The tagging result text
+        output_dir: Optional custom directory for the .txt file
     """
-    output_path = get_output_path(image_path)
+    output_path = get_output_path(image_path, output_dir)
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write(tags)
 

@@ -39,6 +39,7 @@ class Tagger:
         self.backend_type: BackendType = BackendType.GEMINI_API
         self.format: TaggingFormat = TaggingFormat.CAPTIONING
         self.system_prompt: str = DEFAULT_SYSTEM_PROMPT
+        self.output_dir: Optional[str] = None
         
         # Generation parameters
         self.temperature: float = 0.4
@@ -171,7 +172,7 @@ class Tagger:
                 tags = self._generate(image)
                 
                 # Save output
-                save_tags(image_path, tags.strip())
+                save_tags(image_path, tags.strip(), self.output_dir)
                 processed += 1
                 
             except Exception as e:
@@ -240,7 +241,7 @@ class Tagger:
                 tags = self._generate(image)
                 
                 # Save output
-                save_tags(image_path, tags.strip())
+                save_tags(image_path, tags.strip(), self.output_dir)
                 processed += 1
                 
                 # Call per-image callback

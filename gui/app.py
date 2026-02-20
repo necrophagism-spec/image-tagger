@@ -9,6 +9,7 @@ import threading
 from pathlib import Path
 from typing import Optional, List, Dict
 from PIL import Image, ImageTk
+import concurrent.futures
 
 from core.tagger import get_tagger, BackendType, TaggingFormat
 from core.local_vlm import get_local_vlm, VLMType
@@ -39,20 +40,24 @@ ctk.set_default_color_theme("blue")
 # Thumbnail size
 THUMB_SIZE = (80, 80)
 
+# Global executor for thumbnails
+THUMB_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+
 
 class ImageThumbnail(ctk.CTkFrame):
     """Single image thumbnail with checkbox."""
     
-    def __init__(self, parent, image_path: Path, on_select=None, **kwargs):
+    def __init__(self, parent, image_path: Path, on_select=None, output_dir: str = None, **kwargs):
         super().__init__(parent, **kwargs)
         
         self.image_path = image_path
         self.on_select = on_select
+        self.output_dir = output_dir
         self._selected = False
         self._checked = True
         
         # Check if has tags
-        self.txt_path = get_output_path(image_path)
+        self.txt_path = get_output_path(image_path, self.output_dir)
         self.has_tags = self.txt_path.exists()
         
         # Layout
@@ -71,8 +76,6 @@ class ImageThumbnail(ctk.CTkFrame):
         self.thumb_label.grid(row=0, column=1, padx=2, pady=5)
         self.thumb_label.bind("<Button-1>", self._on_click)
         
-        # Load thumbnail in background
-        self._load_thumbnail()
         
         # Filename
         name = image_path.name
@@ -91,17 +94,47 @@ class ImageThumbnail(ctk.CTkFrame):
         )
         self.name_label.grid(row=0, column=2, padx=(2, 5), pady=5, sticky="w")
         self.name_label.bind("<Button-1>", self._on_click)
+        
+        # Load thumbnail async
+        self.thumb_label.configure(text="...")
+        self._load_job = THUMB_EXECUTOR.submit(self._load_image_task)
+        self._check_load_status()
     
-    def _load_thumbnail(self):
-        """Load and display thumbnail."""
+    def _load_image_task(self):
+        """Background task to load and resize image."""
         try:
-            img = Image.open(self.image_path)
-            img.thumbnail(THUMB_SIZE, Image.Resampling.LANCZOS)
+            with Image.open(self.image_path) as img:
+                # Optimize loading for JPEGs
+                if img.format == 'JPEG':
+                    img.draft('RGB', (THUMB_SIZE[0]*2, THUMB_SIZE[1]*2))
+                
+                # Convert to RGB to avoid alpha issues
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
+                
+                # Resize
+                img.thumbnail(THUMB_SIZE, Image.Resampling.BILINEAR)
+                
+                # Create a copy to persist after file close
+                return img.copy()
+        except Exception:
+            return None
             
-            # Convert to CTkImage
+    def _check_load_status(self):
+        """Poll for load completion."""
+        if self._load_job and self._load_job.done():
+            img = self._load_job.result()
+            self._on_thumb_loaded(img)
+            self._load_job = None
+        else:
+            self.after(100, self._check_load_status)
+
+    def _on_thumb_loaded(self, img):
+        """Update UI with loaded image."""
+        if img:
             self.ctk_image = ctk.CTkImage(light_image=img, dark_image=img, size=img.size)
-            self.thumb_label.configure(image=self.ctk_image)
-        except Exception as e:
+            self.thumb_label.configure(image=self.ctk_image, text="")
+        else:
             self.thumb_label.configure(text="ERR")
     
     def _on_click(self, event=None):
@@ -123,12 +156,15 @@ class ImageThumbnail(ctk.CTkFrame):
     
     def update_status(self):
         """Update the tag status indicator."""
+        # Re-evaluate text path in case output dir changed
+        self.txt_path = get_output_path(self.image_path, self.output_dir)
         self.has_tags = self.txt_path.exists()
         status = "✓" if self.has_tags else "○"
         name = self.image_path.name
         if len(name) > 15:
             name = name[:12] + "..."
         self.name_label.configure(text=f"{status} {name}")
+
 
 
 class ImageTaggerApp(ctk.CTk):
@@ -190,17 +226,37 @@ class ImageTaggerApp(ctk.CTk):
         top_frame = ctk.CTkFrame(self)
         top_frame.grid(row=0, column=0, columnspan=3, sticky="ew", padx=10, pady=(10, 5))
         
-        label = ctk.CTkLabel(top_frame, text="Target Folder:", font=("", 13, "bold"))
-        label.pack(side="left", padx=(10, 5))
+        # Row 1: Input Folder
+        row1 = ctk.CTkFrame(top_frame, fg_color="transparent")
+        row1.pack(fill="x", padx=5, pady=(5, 2))
         
-        self.folder_entry = ctk.CTkEntry(top_frame, placeholder_text="Select a folder...")
+        label1 = ctk.CTkLabel(row1, text="Image Folder:", width=90, anchor="w", font=("", 13, "bold"))
+        label1.pack(side="left")
+        
+        self.folder_entry = ctk.CTkEntry(row1, placeholder_text="Select image folder...")
         self.folder_entry.pack(side="left", fill="x", expand=True, padx=5)
         
-        self.browse_btn = ctk.CTkButton(top_frame, text="Browse", width=80, command=self._browse_folder)
+        self.browse_btn = ctk.CTkButton(row1, text="Browse", width=80, command=self._browse_folder)
         self.browse_btn.pack(side="left", padx=5)
         
-        self.refresh_btn = ctk.CTkButton(top_frame, text="↻", width=40, command=self._refresh_folder)
-        self.refresh_btn.pack(side="left", padx=(0, 10))
+        self.refresh_btn = ctk.CTkButton(row1, text="↻ Load", width=60, command=self._refresh_folder)
+        self.refresh_btn.pack(side="left", padx=(0, 5))
+        
+        # Row 2: Output Folder
+        row2 = ctk.CTkFrame(top_frame, fg_color="transparent")
+        row2.pack(fill="x", padx=5, pady=(2, 5))
+        
+        label2 = ctk.CTkLabel(row2, text="Output Tags:", width=90, anchor="w", font=("", 13, "bold"))
+        label2.pack(side="left")
+        
+        self.output_folder_entry = ctk.CTkEntry(row2, placeholder_text="Leave blank to save next to images...")
+        self.output_folder_entry.pack(side="left", fill="x", expand=True, padx=5)
+        
+        self.browse_out_btn = ctk.CTkButton(row2, text="Browse", width=80, command=self._browse_output_folder)
+        self.browse_out_btn.pack(side="left", padx=5)
+        
+        # Empty space to align with the Load button above
+        ctk.CTkFrame(row2, width=65, height=1, fg_color="transparent").pack(side="left", padx=(0, 5))
     
     def _create_image_browser(self):
         """Create left column image browser."""
@@ -419,6 +475,7 @@ class ImageTaggerApp(ctk.CTk):
         self.temp_slider, self.temp_label = self._create_slider(settings_frame, "Temperature:", 0, 2, 0.4, 0)
         self.topk_slider, self.topk_label = self._create_slider(settings_frame, "Top-K:", 1, 100, 40, 1, True)
         self.topp_slider, self.topp_label = self._create_slider(settings_frame, "Top-P:", 0, 1, 0.9, 2)
+        self.max_tokens_slider, self.max_tokens_label = self._create_slider(settings_frame, "Max Tokens:", 128, 4096, 512, 3, True)
         
         # Local VLM only settings
         self.local_settings_frame = ctk.CTkFrame(self.settings_section, fg_color="transparent")
@@ -619,12 +676,23 @@ class ImageTaggerApp(ctk.CTk):
             self.reasoning_frame.pack(fill="x", padx=10, pady=(0, 10))
     
     def _browse_folder(self):
-        """Open folder browser."""
+        """Open folder browser for input images."""
         folder = filedialog.askdirectory(title="Select Image Folder")
         if folder:
             self.folder_entry.delete(0, "end")
             self.folder_entry.insert(0, folder)
             self._load_folder(folder)
+            
+    def _browse_output_folder(self):
+        """Open folder browser for output tags."""
+        folder = filedialog.askdirectory(title="Select Output Folder")
+        if folder:
+            self.output_folder_entry.delete(0, "end")
+            self.output_folder_entry.insert(0, folder)
+            # Reload to update status indicators based on new output folder
+            input_folder = self.folder_entry.get().strip()
+            if input_folder:
+                self._load_folder(input_folder)
     
     def _refresh_folder(self):
         """Refresh current folder."""
@@ -644,12 +712,17 @@ class ImageTaggerApp(ctk.CTk):
         self._current_images = find_images(folder)
         self.image_count_label.configure(text=f"({len(self._current_images)})")
         
+        output_dir = self.output_folder_entry.get().strip()
+        if not output_dir:
+            output_dir = None
+        
         # Create thumbnails
         for img_path in self._current_images:
             thumb = ImageThumbnail(
                 self.thumb_scroll, 
                 img_path, 
-                on_select=self._on_thumbnail_select
+                on_select=self._on_thumbnail_select,
+                output_dir=output_dir
             )
             thumb.pack(fill="x", pady=1)
             self._thumbnails.append(thumb)
@@ -688,7 +761,9 @@ class ImageTaggerApp(ctk.CTk):
             self.preview_label.configure(text=f"Error: {e}", image=None)
         
         # Load tags
-        txt_path = get_output_path(image_path)
+        output_dir = self.output_folder_entry.get().strip()
+        txt_path = get_output_path(image_path, output_dir if output_dir else None)
+        
         self.tag_editor.delete("1.0", "end")
         if txt_path.exists():
             try:
@@ -701,8 +776,9 @@ class ImageTaggerApp(ctk.CTk):
         """Save current editor content to file."""
         if not self._selected_thumbnail:
             return
-        
-        txt_path = get_output_path(self._selected_thumbnail.image_path)
+            
+        output_dir = self.output_folder_entry.get().strip()
+        txt_path = get_output_path(self._selected_thumbnail.image_path, output_dir if output_dir else None)
         content = self.tag_editor.get("1.0", "end-1c")
         
         try:
@@ -831,6 +907,7 @@ class ImageTaggerApp(ctk.CTk):
             "temperature": self.temp_slider.get(),
             "top_k": int(self.topk_slider.get()),
             "top_p": self.topp_slider.get(),
+            "max_tokens": int(self.max_tokens_slider.get()),
             "min_p": self.minp_slider.get(),
             "repeat_penalty": self.repeat_slider.get(),
         }
@@ -912,9 +989,14 @@ class ImageTaggerApp(ctk.CTk):
         tagger.temperature = settings["temperature"]
         tagger.top_k = settings["top_k"]
         tagger.top_p = settings["top_p"]
+        tagger.max_tokens = settings["max_tokens"]
         tagger.min_p = settings["min_p"]
         tagger.repeat_penalty = settings["repeat_penalty"]
         tagger.reasoning_effort = self.reasoning_combo.get()
+        
+        # Set output directory
+        output_dir = self.output_folder_entry.get().strip()
+        tagger.output_dir = output_dir if output_dir else None
         
         # Store checked images for processing
         self._images_to_process = checked_images
@@ -984,11 +1066,17 @@ class ImageTaggerApp(ctk.CTk):
         """Load settings from config."""
         config = self.config
         
-        # Folder
-        last_folder = config.get("last_folder")
+        # Folders
+        last_folder = config.get("last_folder", "")
         if last_folder:
             self.folder_entry.insert(0, last_folder)
-            if Path(last_folder).is_dir():
+            
+        last_output_folder = config.get("last_output_folder", "")
+        if last_output_folder:
+            self.output_folder_entry.insert(0, last_output_folder)
+            
+        # Try to load if folder exists
+        if last_folder and Path(last_folder).is_dir():
                 self._load_folder(last_folder)
         
         # Model type
@@ -1045,6 +1133,10 @@ class ImageTaggerApp(ctk.CTk):
         self.topp_slider.set(topp_val)
         self.topp_label.configure(text=f"{topp_val:.2f}")
         
+        max_tokens_val = config.get("max_tokens", 512)
+        self.max_tokens_slider.set(max_tokens_val)
+        self.max_tokens_label.configure(text=str(int(max_tokens_val)))
+        
         minp_val = config.get("min_p", 0.05)
         self.minp_slider.set(minp_val)
         self.minp_label.configure(text=f"{minp_val:.2f}")
@@ -1067,6 +1159,7 @@ class ImageTaggerApp(ctk.CTk):
         """Save current settings to config."""
         self.config.update({
             "last_folder": self.folder_entry.get().strip(),
+            "last_output_folder": self.output_folder_entry.get().strip(),
             "model_type": self.model_type_var.get(),
             "gemini_model": self.gemini_model_combo.get(),
             "api_key": self.api_key_entry.get().strip(),
@@ -1080,6 +1173,7 @@ class ImageTaggerApp(ctk.CTk):
             "temperature": self.temp_slider.get(),
             "top_k": int(self.topk_slider.get()),
             "top_p": self.topp_slider.get(),
+            "max_tokens": int(self.max_tokens_slider.get()),
             "min_p": self.minp_slider.get(),
             "repeat_penalty": self.repeat_slider.get(),
             "reasoning_effort": self.reasoning_combo.get(),
@@ -1092,6 +1186,7 @@ class ImageTaggerApp(ctk.CTk):
     def _on_close(self):
         """Handle window close."""
         self._save_settings()
+        THUMB_EXECUTOR.shutdown(wait=False)
         self.destroy()
 
 
